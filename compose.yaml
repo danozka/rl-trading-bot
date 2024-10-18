@@ -1,0 +1,47 @@
+services:
+  vip:
+    container_name: vip
+    image: vip
+    build:
+      dockerfile: ./Dockerfile
+      context: .
+      args:
+        - PYTHON_VERSION=3.11
+        - NODE_VERSION=20.18.0
+        - ANGULAR_VERSION=18.2.8
+      secrets:
+        - http_proxy
+        - https_proxy
+        - pip_index_url
+        - pip_trusted_host
+        - pip_proxy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ${LARGE_LANGUAGE_MODEL_PATH}:/app/models/model.gguf
+      - ${VIDEOS_DIRECTORY_PATH}:/app/videos
+    environment:
+      - APP_FRONTEND_PATH=/app/frontend
+      - APP_HOST=0.0.0.0
+      - APP_NAME=VideoInsightsProcessor
+      - APP_PORT=8000
+      - LARGE_LANGUAGE_MODEL_PATH=/app/models/model.gguf
+      - LARGE_LANGUAGE_MODEL_CONTEXT_LENGTH=8192
+      - LARGE_LANGUAGE_MODEL_NUMBER_OF_GPU_LAYERS=10
+      - LOGGING_LEVEL=INFO
+      - VIDEOS_DIRECTORY_PATH=/app/videos
+    restart: unless-stopped
+secrets:
+  http_proxy:
+    environment: HTTP_PROXY
+  https_proxy:
+    environment: HTTPS_PROXY
+  pip_index_url:
+    environment: PIP_INDEX_URL
+  pip_trusted_host:
+    environment: PIP_TRUSTED_HOST
+  pip_proxy:
+    environment: PIP_PROXY
+networks:
+  default:
+    name: vip-network
