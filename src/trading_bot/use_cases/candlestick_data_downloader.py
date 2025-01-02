@@ -3,9 +3,9 @@ from logging import Logger
 
 from dependency_injector.wiring import inject, Provide
 
-from rl_trading_bot.domain.candlestick_data_interval import CandlestickDataInterval
-from rl_trading_bot.persistence.i_candlestick_data_persistence import ICandlestickDataPersistence
-from rl_trading_bot.services.i_candlestick_data_repository import ICandlestickDataRepository
+from trading_bot.candlestick.candlestick_data_interval import CandlestickDataInterval
+from trading_bot.candlestick.i_candlestick_data_persistence import ICandlestickDataPersistence
+from trading_bot.candlestick.i_candlestick_data_repository import ICandlestickDataRepository
 
 
 class CandlestickDataDownloader:

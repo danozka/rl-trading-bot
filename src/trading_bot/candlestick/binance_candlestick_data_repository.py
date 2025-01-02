@@ -7,8 +7,8 @@ import pandas as pd
 from httpx import Client, RequestError, Response
 from pandas import DataFrame
 
-from rl_trading_bot.domain.candlestick_data_interval import CandlestickDataInterval
-from rl_trading_bot.services.i_candlestick_data_repository import ICandlestickDataRepository
+from trading_bot.candlestick.candlestick_data_interval import CandlestickDataInterval
+from trading_bot.candlestick.i_candlestick_data_repository import ICandlestickDataRepository
 
 
 class BinanceCandlestickDataRepository(ICandlestickDataRepository):
@@ -95,13 +95,15 @@ class BinanceCandlestickDataRepository(ICandlestickDataRepository):
 
     @staticmethod
     def _adapt_message_to_dataframe(message: list[list[int | str]]) -> DataFrame:
+        # https://binance-docs.github.io/apidocs/spot/en/#kline-candlestick-data
         result: DataFrame = DataFrame()
         result['open_time'] = [datetime.fromtimestamp(x[0] / 1000, tz=timezone.utc) for x in message]
-        result['close_time'] = [datetime.fromtimestamp(x[6] / 1000, tz=timezone.utc) for x in message]
         result['open'] = [float(x[1]) for x in message]
-        result['close'] = [float(x[4]) for x in message]
         result['high'] = [float(x[2]) for x in message]
         result['low'] = [float(x[3]) for x in message]
+        result['close'] = [float(x[4]) for x in message]
+        result['volume'] = [float(x[5]) for x in message]
+        result['close_time'] = [datetime.fromtimestamp(x[6] / 1000, tz=timezone.utc) for x in message]
         return result
 
     @staticmethod

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from pandas import DataFrame
 
-from rl_trading_bot.domain.candlestick_data_interval import CandlestickDataInterval
+from trading_bot.candlestick.candlestick_data_interval import CandlestickDataInterval
 
 
 class ICandlestickDataRepository(ABC):

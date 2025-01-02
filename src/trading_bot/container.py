@@ -1,0 +1,17 @@
+from dependency_injector.containers import DeclarativeContainer, WiringConfiguration
+from dependency_injector.providers import Singleton
+
+from reinforcement_learning import IPpoPoliciesPersistence
+from trading_bot import use_cases
+from trading_bot.candlestick.binance_candlestick_data_repository import BinanceCandlestickDataRepository
+from trading_bot.candlestick.i_candlestick_data_persistence import ICandlestickDataPersistence
+from trading_bot.candlestick.i_candlestick_data_repository import ICandlestickDataRepository
+from trading_bot.candlestick.pickle_candlestick_data_persistence import PickleCandlestickDataPersistence
+from trading_bot.policies.pickle_trading_ppo_policies_persistence import PickleTradingPpoPoliciesPersistence
+
+
+class Container(DeclarativeContainer):
+    wiring_config: WiringConfiguration = WiringConfiguration(packages=[use_cases])
+    candlestick_data_persistence: Singleton[ICandlestickDataPersistence] = Singleton(PickleCandlestickDataPersistence)
+    candlestick_data_repository: Singleton[ICandlestickDataRepository] = Singleton(BinanceCandlestickDataRepository)
+    ppo_policies_persistence: Singleton[IPpoPoliciesPersistence] = Singleton(PickleTradingPpoPoliciesPersistence)
