@@ -1,4 +1,5 @@
 import logging
+from collections import deque
 from logging import Logger
 from uuid import UUID
 
@@ -16,6 +17,7 @@ class PpoAgentTrainer:
     _ppo_policies_persistence: IPpoPoliciesPersistence
     _episodes: int
     _max_time_steps: int
+    _rewards_memory: int
     _learning_rate: float
     _gamma: float
     _eps_clip: float
@@ -31,6 +33,7 @@ class PpoAgentTrainer:
         ppo_policies_persistence: IPpoPoliciesPersistence,
         episodes: int,
         max_time_steps: int,
+        rewards_memory: int = 100,
         learning_rate: float = 3e-4,
         gamma: float = 0.99,
         eps_clip: float = 0.2,
@@ -40,6 +43,7 @@ class PpoAgentTrainer:
         self._ppo_policies_persistence = ppo_policies_persistence
         self._episodes = episodes
         self._max_time_steps = max_time_steps
+        self._rewards_memory = rewards_memory
         self._learning_rate = learning_rate
         self._gamma = gamma
         self._eps_clip = eps_clip
@@ -58,6 +62,7 @@ class PpoAgentTrainer:
             eps_clip=self._eps_clip,
             update_epochs=self._update_epochs
         )
+        episode_rewards: deque[float] = deque(maxlen=self._rewards_memory)
         episode: int
         for episode in range(self._episodes):
             episode_reward: float = 0.0
@@ -84,8 +89,12 @@ class PpoAgentTrainer:
                 dones=self._dones
             )
             self._reset_buffer()
+            episode_rewards.append(episode_reward)
+            mean_episode_rewards: float = sum(episode_rewards) / len(episode_rewards)
             self._ppo_policies_persistence.save_ppo_policy(ppo_policy)
-            self._log.info(f'Episode {episode} - Reward {episode_reward:0.3f}')
+            self._log.info(
+                f'Episode {episode} - Reward {episode_reward:0.3f} - Mean reward {mean_episode_rewards:0.3f}'
+            )
         self._log.info(f'PPO agent with policy ID \'{ppo_policy_id}\' training completed')
 
     def _reset_buffer(self) -> None:
