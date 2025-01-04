@@ -22,6 +22,8 @@ class TradingEnvironment(Environment):
     _open_position_lower_interval_index: int | None
     _current_balance: float
     _holdings: float
+    _profit_and_loss: float
+    _steps_without_action: int
 
     def __init__(
         self,
@@ -44,19 +46,42 @@ class TradingEnvironment(Environment):
         self._open_position_lower_interval_index = None
         self._current_balance = self._initial_balance
         self._holdings = 0.0
+        self._profit_and_loss = 0.0
+        self._steps_without_action = 0
         return self._get_current_state()
 
     def make_step(self, agent_action_id: int) -> TradingEnvironmentState:
-        close_column_loc: int = self._lower_interval_candlestick_data.columns.get_loc('close')
         reward: float = 0.0
+        step_profit_and_loss: float = 0.0
+        current_price: float = self._current_lower_interval_candlestick_data['close'].iloc[-1]
         agent_action: TradingAgentAction = TradingAgentAction(agent_action_id)
-        if agent_action == TradingAgentAction.open_position:
+        if agent_action == TradingAgentAction.open_long_position:
+            self._steps_without_action = 0
             if self._open_position_lower_interval_index is None:
+                reward += 0.1  # Small encouragement for exploration
                 self._open_position_lower_interval_index = self._current_lower_interval_index
-        elif agent_action == TradingAgentAction.close_position:
-            self._open_position_lower_interval_index = None
+                self._current_balance -= self._position_size
+                self._holdings = (self._position_size / current_price) * (1.0 - self._trading_fee)
+            else:
+                reward -= 0.1  # Penalize opening new positions without closing existing ones
+        elif agent_action == TradingAgentAction.close_long_position:
+            self._steps_without_action = 0
+            if self._open_position_lower_interval_index is None:
+                reward -= 0.1  # Penalize closing action without open positions
+            else:
+                reward += 0.1  # Encourage active risk management
+                position_profit_and_loss: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
+                step_profit_and_loss = position_profit_and_loss - self._position_size
+                self._holdings = 0.0
+                self._current_balance += position_profit_and_loss
+                self._open_position_lower_interval_index = None
         else:
-            pass
+            self._steps_without_action += 1
+            reward -= 0.01 * self._steps_without_action
+        if step_profit_and_loss > 0.0:
+            reward += step_profit_and_loss * 2.0  # Extra reward for closing with a profit
+        else:
+            reward += step_profit_and_loss * 0.5  # Smaller penalty for closing at a loss
         self._current_lower_interval_index += 1
         self._update_candlestick_data()
         done: bool = self._open_position_lower_interval_index is None and self._current_balance <= 0.0

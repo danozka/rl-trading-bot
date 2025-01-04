@@ -37,13 +37,13 @@ def main(
     lower_interval_lookback_candles: Annotated[
         int,
         typer.Option(help='Number of previous candles in the lower interval seen by the trading bot during training')
-    ] = 200,
+    ] = 96,
     higher_interval_lookback_candles: Annotated[
         int,
         typer.Option(help='Number of previous candles in the higher interval seen by the trading bot during training')
-    ] = 20,
-    episodes: Annotated[int, typer.Option(help='Number of episodes to train the trading bot')] = 5000,
-    max_time_steps: Annotated[int, typer.Option(help='Maximum number of time steps to update the trading bot')] = 500,
+    ] = 120,
+    episodes: Annotated[int, typer.Option(help='Number of episodes to train the trading bot')] = 10000,
+    max_time_steps: Annotated[int, typer.Option(help='Maximum number of time steps to update the trading bot')] = 864,
     download: Annotated[bool, typer.Option('--download', help='Download candlestick data')] = False,
     train: Annotated[bool, typer.Option('--train', help='Train trading bot')] = False,
 ) -> None:
@@ -74,7 +74,7 @@ def main(
                 max_time_steps=max_time_steps
             )
     except Exception as exception:
-        log.error(f'Exception found: {exception.__class__.__name__} - {exception}')
+        log.error(msg=f'Exception found: {exception.__class__.__name__} - {exception}', exc_info=True)
         raise typer.Exit(code=1)
     finally:
         log.info('Application stopped')

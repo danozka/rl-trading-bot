@@ -8,9 +8,14 @@ from trading_bot.environments.trading_environment_state import TradingEnvironmen
 
 class TradingPpoPolicy(PpoPolicy):
     _device: device = device('cuda') if torch.cuda.is_available() else device('cpu')
-    _higher_interval_candlestick_data_conv1d_out_channels: int = 100
-    _lower_interval_candlestick_data_conv1d_out_channels: int = 100
-    _trading_environment_state_linear_out_features: int = 100
+    _candlestick_data_conv1d_in_channels: int = 4
+    _higher_interval_candlestick_data_conv1d_out_channels: int = 1024
+    _higher_interval_candlestick_data_conv1d_kernel_size: int = 120
+    _lower_interval_candlestick_data_conv1d_out_channels: int = 1024
+    _lower_interval_candlestick_data_conv1d_kernel_size: int = 96
+    _trading_environment_state_non_candlestick_data_features: int = 3
+    _trading_environment_state_linear_out_features: int = 1024
+    _trading_action_space: int = 3
     _higher_interval_candlestick_data_layers: Sequential
     _lower_interval_candlestick_data_layers: Sequential
     _trading_environment_state_layers: Sequential
@@ -21,17 +26,17 @@ class TradingPpoPolicy(PpoPolicy):
         super().__init__()
         self._higher_interval_candlestick_data_layers = Sequential(
             Conv1d(
-                in_channels=5, 
+                in_channels=self._candlestick_data_conv1d_in_channels,
                 out_channels=self._higher_interval_candlestick_data_conv1d_out_channels, 
-                kernel_size=20
+                kernel_size=self._higher_interval_candlestick_data_conv1d_kernel_size
             ),
             ReLU()
         )
         self._lower_interval_candlestick_data_layers = Sequential(
             Conv1d(
-                in_channels=5,
+                in_channels=self._candlestick_data_conv1d_in_channels,
                 out_channels=self._lower_interval_candlestick_data_conv1d_out_channels,
-                kernel_size=200
+                kernel_size=self._lower_interval_candlestick_data_conv1d_kernel_size
             ),
             ReLU()
         )
@@ -40,22 +45,34 @@ class TradingPpoPolicy(PpoPolicy):
                 in_features=(
                     self._higher_interval_candlestick_data_conv1d_out_channels +
                     self._lower_interval_candlestick_data_conv1d_out_channels +
-                    3
+                    self._trading_environment_state_non_candlestick_data_features
                 ),
                 out_features=self._trading_environment_state_linear_out_features
             ),
             ReLU()
         )
         self._actor = Sequential(
-            Linear(in_features=self._trading_environment_state_linear_out_features, out_features=50),
+            Linear(in_features=self._trading_environment_state_linear_out_features, out_features=512),
             ReLU(),
-            Linear(in_features=50, out_features=3),
+            Linear(in_features=512, out_features=256),
+            ReLU(),
+            Linear(in_features=256, out_features=128),
+            ReLU(),
+            Linear(in_features=128, out_features=64),
+            ReLU(),
+            Linear(in_features=64, out_features=self._trading_action_space),
             Softmax(dim=-1)
         )
         self._critic = Sequential(
-            Linear(in_features=self._trading_environment_state_linear_out_features, out_features=50),
+            Linear(in_features=self._trading_environment_state_linear_out_features, out_features=512),
             ReLU(),
-            Linear(in_features=50, out_features=1)
+            Linear(in_features=512, out_features=256),
+            ReLU(),
+            Linear(in_features=256, out_features=128),
+            ReLU(),
+            Linear(in_features=128, out_features=64),
+            ReLU(),
+            Linear(in_features=64, out_features=1)
         )
         self.to(self._device)
 
