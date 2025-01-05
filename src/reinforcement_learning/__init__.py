@@ -1,4 +1,5 @@
 from reinforcement_learning.environments.environment import Environment
+from reinforcement_learning.environments.environment_episode_summary import EnvironmentEpisodeSummary
 from reinforcement_learning.environments.environment_state import EnvironmentState
 from reinforcement_learning.policies.i_ppo_policies_persistence import IPpoPoliciesPersistence
 from reinforcement_learning.policies.ppo_policy import PpoPolicy

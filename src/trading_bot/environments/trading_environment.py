@@ -1,5 +1,4 @@
 import random
-from collections import deque
 
 from pandas import DataFrame, Timestamp
 from ta.trend import ema_indicator
@@ -7,6 +6,7 @@ from ta.volatility import average_true_range
 
 from reinforcement_learning import Environment
 from trading_bot.agents.trading_agent_action import TradingAgentAction
+from trading_bot.environments.trading_environment_episode_summary import TradingEnvironmentEpisodeSummary
 from trading_bot.environments.trading_environment_state import TradingEnvironmentState
 
 
@@ -15,7 +15,7 @@ class TradingEnvironment(Environment):
     _initial_balance: float = 1000.0
     _position_size: float = 100.0
     _trading_fee: float = 0.001
-    _profit_and_loss_memory: int = 5
+    _recent_profit_and_loss_memory: int = 5
     _lower_interval_candlestick_data: DataFrame
     _higher_interval_candlestick_data: DataFrame
     _lower_interval_lookback_candles: int
@@ -32,7 +32,7 @@ class TradingEnvironment(Environment):
     _current_balance: float
     _holdings: float
     _steps_without_action: int
-    _profit_and_loss_history: deque[bool]
+    _profit_and_loss_history: list[bool]
     _open_position_max_gain: float
     _open_position_max_loss: float
     _current_state: TradingEnvironmentState
@@ -78,13 +78,13 @@ class TradingEnvironment(Environment):
         self._current_balance = self._initial_balance
         self._holdings = 0.0
         self._steps_without_action = 0
-        self._profit_and_loss_history = deque(maxlen=self._profit_and_loss_memory)
+        self._profit_and_loss_history = []
         self._update_current_state()
         return self._current_state
 
     def make_step(self, agent_action_id: int) -> TradingEnvironmentState:
         reward: float = 0.0
-        current_price: float = self._current_lower_interval_candlestick_data['close'].iloc[-1]
+        current_price: float = float(self._current_lower_interval_candlestick_data['close'].iloc[-1])
         agent_action: TradingAgentAction = TradingAgentAction(agent_action_id)
         if agent_action == TradingAgentAction.open_long_position:
             self._steps_without_action = 0
@@ -131,6 +131,13 @@ class TradingEnvironment(Environment):
         self._update_current_state(reward, done)
         return self._current_state
 
+    def get_episode_summary(self) -> TradingEnvironmentEpisodeSummary:
+        return TradingEnvironmentEpisodeSummary(
+            final_balance=round(number=self._current_balance, ndigits=2),
+            closed_positions=len(self._profit_and_loss_history),
+            win_ratio=round(number=(sum(self._profit_and_loss_history) / len(self._profit_and_loss_history)), ndigits=3)
+        )
+
     def _update_candlestick_data(self) -> None:
         self._current_lower_interval_candlestick_data = self._lower_interval_candlestick_data[
             (self._current_lower_interval_index + 1 - self._lower_interval_lookback_candles):
@@ -174,15 +181,24 @@ class TradingEnvironment(Environment):
         )
         current_lower_interval_candlestick_data.drop(columns=self._columns_to_drop, inplace=True)
         current_higher_interval_candlestick_data.drop(columns=self._columns_to_drop, inplace=True)
+        max_high_price: float = float(current_higher_interval_candlestick_data['high'].max())
+        min_low_price: float = float(current_higher_interval_candlestick_data['low'].min())
+        delta_price: float = max_high_price - min_low_price
+        current_lower_interval_candlestick_data_normalized: DataFrame = (
+            (current_lower_interval_candlestick_data - min_low_price) / delta_price
+        )
+        current_higher_interval_candlestick_data_normalized: DataFrame = (
+            (current_higher_interval_candlestick_data - min_low_price) / delta_price
+        )
         is_position_open: bool
         open_position_gain_or_loss: float
         open_position_age: float
         if self._open_position_lower_interval_index is not None:
             is_position_open = True
-            current_price: float = current_lower_interval_candlestick_data['close'].iloc[-1]
-            open_position_price: float = self._lower_interval_candlestick_data['close'].iloc[
-                self._open_position_lower_interval_index
-            ]
+            current_price: float = float(self._current_lower_interval_candlestick_data['close'].iloc[-1])
+            open_position_price: float = float(
+                self._lower_interval_candlestick_data['close'].iloc[self._open_position_lower_interval_index]
+            )
             open_position_gain_or_loss = (current_price - open_position_price) / open_position_price
             if open_position_gain_or_loss >= 0.0:
                 self._open_position_max_gain = max(self._open_position_max_gain, open_position_gain_or_loss)
@@ -198,15 +214,6 @@ class TradingEnvironment(Environment):
             self._open_position_max_gain = 0.0
             self._open_position_max_loss = 0.0
             open_position_age = 0.0
-        max_high_price: float = float(current_higher_interval_candlestick_data['high'].max())
-        min_low_price: float = float(current_higher_interval_candlestick_data['low'].min())
-        delta_price: float = max_high_price - min_low_price
-        current_lower_interval_candlestick_data_normalized: DataFrame = (
-            (current_lower_interval_candlestick_data - min_low_price) / delta_price
-        )
-        current_higher_interval_candlestick_data_normalized: DataFrame = (
-            (current_higher_interval_candlestick_data - min_low_price) / delta_price
-        )
         self._current_state = TradingEnvironmentState(
             reward=reward,
             done=done,
@@ -234,6 +241,9 @@ class TradingEnvironment(Environment):
                     window=50
                 ).iloc[-1]
             ),
-            recent_win_ratio=(sum(self._profit_and_loss_history) / self._profit_and_loss_memory),
+            recent_win_ratio=(
+                sum(self._profit_and_loss_history[-self._recent_profit_and_loss_memory:]) /
+                self._recent_profit_and_loss_memory
+            ),
             hour_of_day=(self._current_higher_interval_candlestick_data['close_time'].iloc[-1].hour / 24.0)
         )

@@ -3,7 +3,7 @@ import numpy as np
 from gymnasium import Env
 from numpy.typing import NDArray
 
-from reinforcement_learning import Environment
+from reinforcement_learning import Environment, EnvironmentEpisodeSummary
 from validation.environments.lunar_lander_environment_state import LunarLanderEnvironmentState
 
 
@@ -31,6 +31,9 @@ class LunarLanderEnvironment(Environment):
         truncated: bool
         observation, reward, terminated, truncated, _ = self._env.step(agent_action_id)
         return self._get_current_state(observation=observation, reward=reward, done=(terminated or truncated))
+
+    def get_episode_summary(self) -> EnvironmentEpisodeSummary:
+        return EnvironmentEpisodeSummary()
 
     @staticmethod
     def _get_current_state(

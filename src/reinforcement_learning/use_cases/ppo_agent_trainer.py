@@ -95,7 +95,8 @@ class PpoAgentTrainer:
             episode_rewards.append(episode_reward)
             mean_episode_rewards: float = sum(episode_rewards) / len(episode_rewards)
             self._log.info(
-                f'Episode {episode} - Reward {episode_reward:0.3f} - Mean reward {mean_episode_rewards:0.3f}'
+                f'Episode {episode} - Reward {episode_reward:0.3f} - Mean reward {mean_episode_rewards:0.3f} - '
+                f'{self._environment.get_episode_summary()}'
             )
             if episode % self._policy_save_rate == 0:
                 self._ppo_policies_persistence.save_ppo_policy(ppo_policy)
