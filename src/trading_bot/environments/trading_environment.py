@@ -15,7 +15,7 @@ class TradingEnvironment(Environment):
     _initial_balance: float = 1000.0
     _position_size: float = 100.0
     _trading_fee: float = 0.001
-    _recent_profit_and_loss_memory: int = 5
+    _recent_trades_memory: int = 5
     _lower_interval_candlestick_data: DataFrame
     _higher_interval_candlestick_data: DataFrame
     _lower_interval_lookback_candles: int
@@ -32,7 +32,7 @@ class TradingEnvironment(Environment):
     _current_balance: float
     _holdings: float
     _steps_without_action: int
-    _profit_and_loss_history: list[bool]
+    _profit_and_loss_history: list[float]
     _profit: float
     _open_position_max_gain: float
     _open_position_max_loss: float
@@ -103,26 +103,25 @@ class TradingEnvironment(Environment):
                 reward -= 0.1  # Penalize invalid action
             else:
                 reward += 0.1  # Encourage closing positions
-                position_profit_and_loss: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
-                step_profit_and_loss = position_profit_and_loss - self._position_size
+                position_closing_income: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
+                step_profit_and_loss = position_closing_income - self._position_size
+                self._profit_and_loss_history.append(step_profit_and_loss)
                 self._profit += step_profit_and_loss
                 self._holdings = 0.0
-                self._current_balance += position_profit_and_loss
+                self._current_balance += position_closing_income
                 self._open_position_lower_interval_index = None
                 # Reward/Penalize based on profit and volatility
                 if step_profit_and_loss > 0:
                     # Sharpe-like adjustment
                     reward += (step_profit_and_loss / (1 + self._current_state.market_volatility)) * 2.0
-                    self._profit_and_loss_history.append(True)
                 else:
                     reward += step_profit_and_loss * 0.5
-                    self._profit_and_loss_history.append(False)
         else:
             self._steps_without_action += 1
             reward -= 0.01 * self._steps_without_action  # Penalize inaction
         # Penalize holding positions too long
         if self._open_position_lower_interval_index is not None:
-            position_age = self._current_lower_interval_index - self._open_position_lower_interval_index
+            position_age: int = self._current_lower_interval_index - self._open_position_lower_interval_index
             if position_age > 10:
                 reward -= (position_age - 10) * 0.01
         self._current_lower_interval_index += 1
@@ -132,10 +131,15 @@ class TradingEnvironment(Environment):
         return self._current_state
 
     def get_episode_summary(self) -> TradingEnvironmentEpisodeSummary:
+        closed_positions: int = len(self._profit_and_loss_history)
         return TradingEnvironmentEpisodeSummary(
             profit=round(number=self._profit, ndigits=2),
-            closed_positions=len(self._profit_and_loss_history),
-            win_ratio=round(number=(sum(self._profit_and_loss_history) / len(self._profit_and_loss_history)), ndigits=3)
+            mean_profit_per_trade=round(number=(sum(self._profit_and_loss_history) / closed_positions), ndigits=2),
+            closed_positions=closed_positions,
+            win_ratio=round(
+                number=(sum([1.0 if x > 0.0 else 0.0 for x in self._profit_and_loss_history]) / closed_positions),
+                ndigits=3
+            )
         )
 
     def _update_candlestick_data(self) -> None:
@@ -242,8 +246,8 @@ class TradingEnvironment(Environment):
                 ).iloc[-1]
             ),
             recent_win_ratio=(
-                sum(self._profit_and_loss_history[-self._recent_profit_and_loss_memory:]) /
-                self._recent_profit_and_loss_memory
+                sum([1.0 if x > 0.0 else 0.0 for x in self._profit_and_loss_history[-self._recent_trades_memory:]]) /
+                self._recent_trades_memory
             ),
             hour_of_day=(self._current_higher_interval_candlestick_data['close_time'].iloc[-1].hour / 24.0)
         )
