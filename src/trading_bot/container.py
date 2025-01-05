@@ -7,11 +7,11 @@ from trading_bot.candlestick.binance_candlestick_data_repository import BinanceC
 from trading_bot.candlestick.i_candlestick_data_persistence import ICandlestickDataPersistence
 from trading_bot.candlestick.i_candlestick_data_repository import ICandlestickDataRepository
 from trading_bot.candlestick.pickle_candlestick_data_persistence import PickleCandlestickDataPersistence
-from trading_bot.policies.pickle_trading_ppo_policies_persistence import PickleTradingPpoPoliciesPersistence
+from trading_bot.policies.local_file_trading_ppo_policies_persistence import LocalFileTradingPpoPoliciesPersistence
 
 
 class Container(DeclarativeContainer):
     wiring_config: WiringConfiguration = WiringConfiguration(packages=[use_cases])
     candlestick_data_persistence: Singleton[ICandlestickDataPersistence] = Singleton(PickleCandlestickDataPersistence)
     candlestick_data_repository: Singleton[ICandlestickDataRepository] = Singleton(BinanceCandlestickDataRepository)
-    ppo_policies_persistence: Singleton[IPpoPoliciesPersistence] = Singleton(PickleTradingPpoPoliciesPersistence)
+    ppo_policies_persistence: Singleton[IPpoPoliciesPersistence] = Singleton(LocalFileTradingPpoPoliciesPersistence)

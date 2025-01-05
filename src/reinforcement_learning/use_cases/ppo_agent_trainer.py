@@ -17,6 +17,7 @@ class PpoAgentTrainer:
     _ppo_policies_persistence: IPpoPoliciesPersistence
     _episodes: int
     _max_time_steps: int
+    _policy_save_rate: int
     _rewards_memory: int
     _learning_rate: float
     _gamma: float
@@ -33,6 +34,7 @@ class PpoAgentTrainer:
         ppo_policies_persistence: IPpoPoliciesPersistence,
         episodes: int,
         max_time_steps: int,
+        policy_save_rate: int = 10,
         rewards_memory: int = 100,
         learning_rate: float = 3e-4,
         gamma: float = 0.99,
@@ -43,6 +45,7 @@ class PpoAgentTrainer:
         self._ppo_policies_persistence = ppo_policies_persistence
         self._episodes = episodes
         self._max_time_steps = max_time_steps
+        self._policy_save_rate = policy_save_rate
         self._rewards_memory = rewards_memory
         self._learning_rate = learning_rate
         self._gamma = gamma
@@ -91,10 +94,11 @@ class PpoAgentTrainer:
             self._reset_buffer()
             episode_rewards.append(episode_reward)
             mean_episode_rewards: float = sum(episode_rewards) / len(episode_rewards)
-            self._ppo_policies_persistence.save_ppo_policy(ppo_policy)
             self._log.info(
                 f'Episode {episode} - Reward {episode_reward:0.3f} - Mean reward {mean_episode_rewards:0.3f}'
             )
+            if episode % self._policy_save_rate == 0:
+                self._ppo_policies_persistence.save_ppo_policy(ppo_policy)
         self._log.info(f'PPO agent with policy ID \'{ppo_policy_id}\' training completed')
 
     def _reset_buffer(self) -> None:

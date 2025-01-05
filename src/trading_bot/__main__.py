@@ -74,7 +74,7 @@ def main(
                 max_time_steps=max_time_steps
             )
     except Exception as exception:
-        log.error(msg=f'Exception found: {exception.__class__.__name__} - {exception}', exc_info=True)
+        log.error(f'Exception found: {exception.__class__.__name__} - {exception}')
         raise typer.Exit(code=1)
     finally:
         log.info('Application stopped')
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     logging.basicConfig(
         format='%(asctime)s.%(msecs)03d - [%(levelname)s] - [%(name)s] - %(message)s',
         datefmt='%d-%m-%Y %H:%M:%S',
-        level=logging.DEBUG
+        level=logging.INFO
     )
     container: Container = Container()
     typer.run(main)

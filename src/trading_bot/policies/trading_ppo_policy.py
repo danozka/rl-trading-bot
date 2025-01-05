@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import torch
 from torch import device, Tensor
 from torch.nn import Conv1d, Linear, ReLU, Sequential, Softmax
@@ -22,8 +24,8 @@ class TradingPpoPolicy(PpoPolicy):
     _actor: Sequential
     _critic: Sequential
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, id_: UUID) -> None:
+        super().__init__(id_)
         self._higher_interval_candlestick_data_layers = Sequential(
             Conv1d(
                 in_channels=self._candlestick_data_conv1d_in_channels,
