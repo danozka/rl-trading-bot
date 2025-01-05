@@ -33,6 +33,9 @@ class TradingEnvironment(Environment):
     _holdings: float
     _steps_without_action: int
     _profit_and_loss_history: list[float]
+    _position_age_history: list[int]
+    _reward_per_win_history: list[float]
+    _reward_per_loss_history: list[float]
     _profit: float
     _open_position_max_gain: float
     _open_position_max_loss: float
@@ -80,6 +83,9 @@ class TradingEnvironment(Environment):
         self._holdings = 0.0
         self._steps_without_action = 0
         self._profit_and_loss_history = []
+        self._position_age_history = []
+        self._reward_per_win_history = []
+        self._reward_per_loss_history = []
         self._profit = 0.0
         self._update_current_state()
         return self._current_state
@@ -106,16 +112,25 @@ class TradingEnvironment(Environment):
                 position_closing_income: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
                 step_profit_and_loss = position_closing_income - self._position_size
                 self._profit_and_loss_history.append(step_profit_and_loss)
+                self._position_age_history.append(
+                    self._current_lower_interval_index - self._open_position_lower_interval_index
+                )
                 self._profit += step_profit_and_loss
                 self._holdings = 0.0
                 self._current_balance += position_closing_income
                 self._open_position_lower_interval_index = None
+                step_profit_and_loss_reward: float
                 # Reward/Penalize based on profit and volatility
                 if step_profit_and_loss > 0:
                     # Sharpe-like adjustment
-                    reward += (step_profit_and_loss / (1 + self._current_state.market_volatility)) * 2.0
+                    step_profit_and_loss_reward = (
+                        (step_profit_and_loss / (1 + self._current_state.market_volatility)) * 2.0
+                    )
+                    self._reward_per_win_history.append(step_profit_and_loss_reward)
                 else:
-                    reward += step_profit_and_loss * 0.5
+                    step_profit_and_loss_reward = step_profit_and_loss * 0.5
+                    self._reward_per_loss_history.append(step_profit_and_loss_reward)
+                reward += step_profit_and_loss_reward
         else:
             self._steps_without_action += 1
             reward -= 0.01 * self._steps_without_action  # Penalize inaction
@@ -132,12 +147,28 @@ class TradingEnvironment(Environment):
 
     def get_episode_summary(self) -> TradingEnvironmentEpisodeSummary:
         closed_positions: int = len(self._profit_and_loss_history)
+        positions_won: int = len(self._reward_per_win_history)
+        positions_lost: int = len(self._reward_per_loss_history)
         return TradingEnvironmentEpisodeSummary(
             profit=round(number=self._profit, ndigits=2),
-            mean_profit_per_trade=round(number=(sum(self._profit_and_loss_history) / closed_positions), ndigits=2),
+            mean_position_age=round(
+                number=(sum(self._position_age_history) / closed_positions if closed_positions > 0 else 0.0),
+                ndigits=3
+            ),
+            mean_reward_per_win=round(
+                number=(sum(self._reward_per_win_history) / positions_won if positions_won > 0 else 0.0),
+                ndigits=3
+            ),
+            mean_reward_per_loss=round(
+                number=(sum(self._reward_per_loss_history) / positions_lost if positions_lost > 0 else 0.0),
+                ndigits=3
+            ),
             closed_positions=closed_positions,
             win_ratio=round(
-                number=(sum([1.0 if x > 0.0 else 0.0 for x in self._profit_and_loss_history]) / closed_positions),
+                number=(
+                    sum([1.0 if x > 0.0 else 0.0 for x in self._profit_and_loss_history]) / closed_positions
+                    if closed_positions > 0 else 0.0
+                ),
                 ndigits=3
             )
         )
