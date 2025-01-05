@@ -108,7 +108,6 @@ class TradingEnvironment(Environment):
             if self._open_position_lower_interval_index is None:
                 reward -= 0.1  # Penalize invalid action
             else:
-                reward += 0.1  # Encourage closing positions
                 position_closing_income: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
                 step_profit_and_loss = position_closing_income - self._position_size
                 self._profit_and_loss_history.append(step_profit_and_loss)
@@ -121,14 +120,14 @@ class TradingEnvironment(Environment):
                 self._open_position_lower_interval_index = None
                 step_profit_and_loss_reward: float
                 # Reward/Penalize based on profit and volatility
-                if step_profit_and_loss > 0:
+                if step_profit_and_loss > 0.0:
                     # Sharpe-like adjustment
                     step_profit_and_loss_reward = (
-                        (step_profit_and_loss / (1 + self._current_state.market_volatility)) * 2.0
+                        (step_profit_and_loss / (1 + self._current_state.market_volatility)) * 10.0
                     )
                     self._reward_per_win_history.append(step_profit_and_loss_reward)
                 else:
-                    step_profit_and_loss_reward = step_profit_and_loss * 0.5
+                    step_profit_and_loss_reward = step_profit_and_loss * 2.5
                     self._reward_per_loss_history.append(step_profit_and_loss_reward)
                 reward += step_profit_and_loss_reward
         else:
