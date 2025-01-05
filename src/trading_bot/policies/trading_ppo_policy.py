@@ -13,7 +13,7 @@ class TradingPpoPolicy(PpoPolicy):
     _higher_interval_candlestick_data_conv1d_kernel_size: int = 120
     _lower_interval_candlestick_data_conv1d_out_channels: int = 1024
     _lower_interval_candlestick_data_conv1d_kernel_size: int = 96
-    _trading_environment_state_non_candlestick_data_features: int = 3
+    _trading_environment_state_non_candlestick_data_features: int = 9
     _trading_environment_state_linear_out_features: int = 1024
     _trading_action_space: int = 3
     _higher_interval_candlestick_data_layers: Sequential
@@ -106,17 +106,17 @@ class TradingPpoPolicy(PpoPolicy):
                 higher_interval_candlestick_data_features.squeeze(),
                 lower_interval_candlestick_data_features.squeeze(),
                 torch.tensor(
-                    data=[environment_state.is_position_open],
-                    device=self._device,
-                    dtype=torch.float32
-                ),
-                torch.tensor(
-                    data=[environment_state.open_position_gain_or_loss],
-                    device=self._device,
-                    dtype=torch.float32
-                ),
-                torch.tensor(
-                    data=[environment_state.open_position_age],
+                    data=[
+                        environment_state.is_position_open,
+                        environment_state.open_position_gain_or_loss,
+                        environment_state.open_position_max_gain,
+                        environment_state.open_position_max_loss,
+                        environment_state.open_position_age,
+                        environment_state.market_volatility,
+                        environment_state.trend,
+                        environment_state.recent_win_ratio,
+                        environment_state.hour_of_day
+                    ],
                     device=self._device,
                     dtype=torch.float32
                 )
