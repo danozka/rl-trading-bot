@@ -123,11 +123,8 @@ class TradingEnvironment(Environment):
         # Penalize holding positions too long
         if self._open_position_lower_interval_index is not None:
             position_age = self._current_lower_interval_index - self._open_position_lower_interval_index
-            if position_age > 10:  # Example threshold
+            if position_age > 10:
                 reward -= (position_age - 10) * 0.01
-        # Encourage long-term balance growth
-        # if self._current_balance > self._initial_balance:
-        #     reward += 0.1 * (self._current_balance - self._initial_balance)
         self._current_lower_interval_index += 1
         self._update_candlestick_data()
         done: bool = self._open_position_lower_interval_index is None and self._current_balance <= 0.0
