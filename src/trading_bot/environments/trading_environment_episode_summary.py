@@ -5,6 +5,6 @@ from reinforcement_learning.environments.environment_episode_summary import Envi
 
 @dataclass
 class TradingEnvironmentEpisodeSummary(EnvironmentEpisodeSummary):
-    final_balance: float
+    profit: float
     closed_positions: int
     win_ratio: float

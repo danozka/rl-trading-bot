@@ -33,6 +33,7 @@ class TradingEnvironment(Environment):
     _holdings: float
     _steps_without_action: int
     _profit_and_loss_history: list[bool]
+    _profit: float
     _open_position_max_gain: float
     _open_position_max_loss: float
     _current_state: TradingEnvironmentState
@@ -79,6 +80,7 @@ class TradingEnvironment(Environment):
         self._holdings = 0.0
         self._steps_without_action = 0
         self._profit_and_loss_history = []
+        self._profit = 0.0
         self._update_current_state()
         return self._current_state
 
@@ -103,6 +105,7 @@ class TradingEnvironment(Environment):
                 reward += 0.1  # Encourage closing positions
                 position_profit_and_loss: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
                 step_profit_and_loss = position_profit_and_loss - self._position_size
+                self._profit += step_profit_and_loss
                 self._holdings = 0.0
                 self._current_balance += position_profit_and_loss
                 self._open_position_lower_interval_index = None
@@ -133,7 +136,7 @@ class TradingEnvironment(Environment):
 
     def get_episode_summary(self) -> TradingEnvironmentEpisodeSummary:
         return TradingEnvironmentEpisodeSummary(
-            final_balance=round(number=self._current_balance, ndigits=2),
+            profit=round(number=self._profit, ndigits=2),
             closed_positions=len(self._profit_and_loss_history),
             win_ratio=round(number=(sum(self._profit_and_loss_history) / len(self._profit_and_loss_history)), ndigits=3)
         )
