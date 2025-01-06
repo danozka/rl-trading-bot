@@ -11,3 +11,4 @@ class TradingEnvironmentEpisodeSummary(EnvironmentEpisodeSummary):
     mean_reward_per_loss: float
     closed_positions: int
     win_ratio: float
+    forbidden_actions: int

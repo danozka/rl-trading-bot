@@ -14,7 +14,6 @@ class TradingEnvironmentState(EnvironmentState):
     open_position_max_gain: float
     open_position_max_loss: float
     open_position_age: float
-    market_volatility: float
-    trend: float
+    steps_without_action: float
     recent_win_ratio: float
     hour_of_day: float

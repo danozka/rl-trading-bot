@@ -1,8 +1,6 @@
 import random
 
 from pandas import DataFrame, Timestamp
-from ta.trend import ema_indicator
-from ta.volatility import average_true_range
 
 from reinforcement_learning import Environment
 from trading_bot.agents.trading_agent_action import TradingAgentAction
@@ -37,6 +35,7 @@ class TradingEnvironment(Environment):
     _reward_per_win_history: list[float]
     _reward_per_loss_history: list[float]
     _profit: float
+    _forbidden_actions: int
     _open_position_max_gain: float
     _open_position_max_loss: float
     _current_state: TradingEnvironmentState
@@ -87,6 +86,7 @@ class TradingEnvironment(Environment):
         self._reward_per_win_history = []
         self._reward_per_loss_history = []
         self._profit = 0.0
+        self._forbidden_actions = 0
         self._update_current_state()
         return self._current_state
 
@@ -95,21 +95,23 @@ class TradingEnvironment(Environment):
         current_price: float = float(self._current_lower_interval_candlestick_data['close'].iloc[-1])
         agent_action: TradingAgentAction = TradingAgentAction(agent_action_id)
         if agent_action == TradingAgentAction.open_long_position:
-            self._steps_without_action = 0
             if self._open_position_lower_interval_index is None:
-                reward += 0.05  # Encourage exploration
+                self._steps_without_action = 0
+                reward += 0.1  # Encourage exploration
                 self._open_position_lower_interval_index = self._current_lower_interval_index
                 self._current_balance -= self._position_size
                 self._holdings = (self._position_size / current_price) * (1.0 - self._trading_fee)
             else:
-                reward -= 0.2  # Discourage multiple open positions
+                self._forbidden_actions += 1
+                reward -= 0.1  # Discourage multiple open positions
         elif agent_action == TradingAgentAction.close_long_position:
-            self._steps_without_action = 0
             if self._open_position_lower_interval_index is None:
-                reward -= 0.1  # Penalize invalid action
+                self._forbidden_actions += 1
+                reward -= 0.05  # Penalize invalid action
             else:
+                self._steps_without_action = 0
                 position_closing_income: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
-                step_profit_and_loss = position_closing_income - self._position_size
+                step_profit_and_loss: float = position_closing_income - self._position_size
                 self._profit_and_loss_history.append(step_profit_and_loss)
                 self._position_age_history.append(
                     self._current_lower_interval_index - self._open_position_lower_interval_index
@@ -119,20 +121,16 @@ class TradingEnvironment(Environment):
                 self._current_balance += position_closing_income
                 self._open_position_lower_interval_index = None
                 step_profit_and_loss_reward: float
-                # Reward/Penalize based on profit and volatility
                 if step_profit_and_loss > 0.0:
-                    # Sharpe-like adjustment
-                    step_profit_and_loss_reward = (
-                        (step_profit_and_loss / (1 + self._current_state.market_volatility)) * 10.0
-                    )
+                    step_profit_and_loss_reward = step_profit_and_loss * 7.0  # Boost rewards for gains
                     self._reward_per_win_history.append(step_profit_and_loss_reward)
                 else:
-                    step_profit_and_loss_reward = step_profit_and_loss * 2.5
+                    step_profit_and_loss_reward = step_profit_and_loss * 4.0  # Lower penalty for losses
                     self._reward_per_loss_history.append(step_profit_and_loss_reward)
                 reward += step_profit_and_loss_reward
         else:
             self._steps_without_action += 1
-            reward -= 0.01 * self._steps_without_action  # Penalize inaction
+            reward -= 0.01 * self._steps_without_action
         # Penalize holding positions too long
         if self._open_position_lower_interval_index is not None:
             position_age: int = self._current_lower_interval_index - self._open_position_lower_interval_index
@@ -169,7 +167,8 @@ class TradingEnvironment(Environment):
                     if closed_positions > 0 else 0.0
                 ),
                 ndigits=3
-            )
+            ),
+            forbidden_actions=self._forbidden_actions
         )
 
     def _update_candlestick_data(self) -> None:
@@ -258,23 +257,7 @@ class TradingEnvironment(Environment):
             open_position_max_gain=self._open_position_max_gain,
             open_position_max_loss=self._open_position_max_loss,
             open_position_age=open_position_age,
-            market_volatility=float(
-                average_true_range(
-                    high=current_lower_interval_candlestick_data_normalized['high'],
-                    low=current_lower_interval_candlestick_data_normalized['low'],
-                    close=current_lower_interval_candlestick_data_normalized['close']
-                ).iloc[-1]
-            ),
-            trend=float(
-                ema_indicator(
-                    close=current_lower_interval_candlestick_data_normalized['close'],
-                    window=20
-                ).iloc[-1] -
-                ema_indicator(
-                    close=current_lower_interval_candlestick_data_normalized['close'],
-                    window=50
-                ).iloc[-1]
-            ),
+            steps_without_action=(self._steps_without_action / self._lower_interval_lookback_candles),
             recent_win_ratio=(
                 sum([1.0 if x > 0.0 else 0.0 for x in self._profit_and_loss_history[-self._recent_trades_memory:]]) /
                 self._recent_trades_memory
