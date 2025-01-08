@@ -16,4 +16,3 @@ class TradingEnvironmentState(EnvironmentState):
     open_position_age: float
     steps_without_action: float
     recent_win_ratio: float
-    hour_of_day: float

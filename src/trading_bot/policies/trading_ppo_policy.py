@@ -11,12 +11,12 @@ from trading_bot.environments.trading_environment_state import TradingEnvironmen
 class TradingPpoPolicy(PpoPolicy):
     _device: device = device('cuda') if torch.cuda.is_available() else device('cpu')
     _candlestick_data_conv1d_in_channels: int = 4
-    _higher_interval_candlestick_data_conv1d_out_channels: int = 512
+    _higher_interval_candlestick_data_conv1d_out_channels: int = 128
     _higher_interval_candlestick_data_conv1d_kernel_size: int = 120
-    _lower_interval_candlestick_data_conv1d_out_channels: int = 512
+    _lower_interval_candlestick_data_conv1d_out_channels: int = 128
     _lower_interval_candlestick_data_conv1d_kernel_size: int = 96
-    _trading_environment_state_non_candlestick_data_features: int = 8
-    _trading_environment_state_linear_out_features: int = 512
+    _trading_environment_state_non_candlestick_data_features: int = 7
+    _trading_environment_state_linear_out_features: int = 128
     _trading_action_space: int = 3
     _higher_interval_candlestick_data_layers: Sequential
     _lower_interval_candlestick_data_layers: Sequential
@@ -54,27 +54,27 @@ class TradingPpoPolicy(PpoPolicy):
             ReLU()
         )
         self._actor = Sequential(
-            Linear(in_features=self._trading_environment_state_linear_out_features, out_features=256),
-            ReLU(),
-            Linear(in_features=256, out_features=128),
-            ReLU(),
-            Linear(in_features=128, out_features=64),
+            Linear(in_features=self._trading_environment_state_linear_out_features, out_features=64),
             ReLU(),
             Linear(in_features=64, out_features=32),
             ReLU(),
-            Linear(in_features=32, out_features=self._trading_action_space),
+            Linear(in_features=32, out_features=16),
+            ReLU(),
+            Linear(in_features=16, out_features=8),
+            ReLU(),
+            Linear(in_features=8, out_features=self._trading_action_space),
             Softmax(dim=-1)
         )
         self._critic = Sequential(
-            Linear(in_features=self._trading_environment_state_linear_out_features, out_features=256),
-            ReLU(),
-            Linear(in_features=256, out_features=128),
-            ReLU(),
-            Linear(in_features=128, out_features=64),
+            Linear(in_features=self._trading_environment_state_linear_out_features, out_features=64),
             ReLU(),
             Linear(in_features=64, out_features=32),
             ReLU(),
-            Linear(in_features=32, out_features=1)
+            Linear(in_features=32, out_features=16),
+            ReLU(),
+            Linear(in_features=16, out_features=8),
+            ReLU(),
+            Linear(in_features=8, out_features=1)
         )
         self.to(self._device)
 
@@ -115,8 +115,7 @@ class TradingPpoPolicy(PpoPolicy):
                         environment_state.open_position_max_loss,
                         environment_state.open_position_age,
                         environment_state.steps_without_action,
-                        environment_state.recent_win_ratio,
-                        environment_state.hour_of_day
+                        environment_state.recent_win_ratio
                     ],
                     device=self._device,
                     dtype=torch.float32

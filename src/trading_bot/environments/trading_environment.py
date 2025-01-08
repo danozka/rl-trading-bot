@@ -1,4 +1,5 @@
 import random
+import statistics
 
 from pandas import DataFrame, Timestamp
 
@@ -97,21 +98,23 @@ class TradingEnvironment(Environment):
         if agent_action == TradingAgentAction.open_long_position:
             if self._open_position_lower_interval_index is None:
                 self._steps_without_action = 0
-                reward += 0.1  # Encourage exploration
+                reward += 0.0  # Encourage exploration
                 self._open_position_lower_interval_index = self._current_lower_interval_index
                 self._current_balance -= self._position_size
                 self._holdings = (self._position_size / current_price) * (1.0 - self._trading_fee)
             else:
                 self._forbidden_actions += 1
-                reward -= 0.1  # Discourage multiple open positions
+                reward -= 0.0  # Discourage multiple open positions
         elif agent_action == TradingAgentAction.close_long_position:
             if self._open_position_lower_interval_index is None:
                 self._forbidden_actions += 1
-                reward -= 0.05  # Penalize invalid action
+                reward -= 0.0  # Penalize invalid action
             else:
+                reward += 0.0  # Encourage active risk management
                 self._steps_without_action = 0
                 position_closing_income: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
                 step_profit_and_loss: float = position_closing_income - self._position_size
+                relative_step_profit_and_loss: float = step_profit_and_loss / self._position_size
                 self._profit_and_loss_history.append(step_profit_and_loss)
                 self._position_age_history.append(
                     self._current_lower_interval_index - self._open_position_lower_interval_index
@@ -122,20 +125,21 @@ class TradingEnvironment(Environment):
                 self._open_position_lower_interval_index = None
                 step_profit_and_loss_reward: float
                 if step_profit_and_loss > 0.0:
-                    step_profit_and_loss_reward = step_profit_and_loss * 7.0  # Boost rewards for gains
+                    step_profit_and_loss_reward = relative_step_profit_and_loss * 100.0  # Boost rewards for gains
                     self._reward_per_win_history.append(step_profit_and_loss_reward)
                 else:
-                    step_profit_and_loss_reward = step_profit_and_loss * 4.0  # Lower penalty for losses
+                    step_profit_and_loss_reward = relative_step_profit_and_loss * 100.0  # Lower penalty for losses
                     self._reward_per_loss_history.append(step_profit_and_loss_reward)
                 reward += step_profit_and_loss_reward
         else:
             self._steps_without_action += 1
-            reward -= 0.01 * self._steps_without_action
+            reward -= 0.0 * self._steps_without_action
         # Penalize holding positions too long
         if self._open_position_lower_interval_index is not None:
             position_age: int = self._current_lower_interval_index - self._open_position_lower_interval_index
-            if position_age > 10:
-                reward -= (position_age - 10) * 0.01
+            position_age_penalty: int = 12
+            if position_age > position_age_penalty:
+                reward -= (position_age - position_age_penalty) * 0.0
         self._current_lower_interval_index += 1
         self._update_candlestick_data()
         done: bool = self._open_position_lower_interval_index is None and self._current_balance <= 0.0
@@ -148,27 +152,39 @@ class TradingEnvironment(Environment):
         positions_lost: int = len(self._reward_per_loss_history)
         return TradingEnvironmentEpisodeSummary(
             profit=round(number=self._profit, ndigits=2),
-            mean_position_age=round(
-                number=(sum(self._position_age_history) / closed_positions if closed_positions > 0 else 0.0),
-                ndigits=3
-            ),
-            mean_reward_per_win=round(
-                number=(sum(self._reward_per_win_history) / positions_won if positions_won > 0 else 0.0),
-                ndigits=3
-            ),
-            mean_reward_per_loss=round(
-                number=(sum(self._reward_per_loss_history) / positions_lost if positions_lost > 0 else 0.0),
-                ndigits=3
-            ),
-            closed_positions=closed_positions,
             win_ratio=round(
                 number=(
-                    sum([1.0 if x > 0.0 else 0.0 for x in self._profit_and_loss_history]) / closed_positions
+                    statistics.mean([1.0 if x > 0.0 else 0.0 for x in self._profit_and_loss_history])
                     if closed_positions > 0 else 0.0
                 ),
                 ndigits=3
             ),
-            forbidden_actions=self._forbidden_actions
+            closed_positions=closed_positions,
+            forbidden_actions=self._forbidden_actions,
+            position_age_mean=round(
+                number=(statistics.mean(self._position_age_history) if closed_positions > 0 else 0.0),
+                ndigits=3
+            ),
+            position_age_std=round(
+                number=(statistics.stdev(self._position_age_history) if closed_positions > 1 else 0.0),
+                ndigits=3
+            ),
+            reward_per_win_mean=round(
+                number=(statistics.mean(self._reward_per_win_history) if positions_won > 0 else 0.0),
+                ndigits=3
+            ),
+            reward_per_win_std=round(
+                number=(statistics.stdev(self._reward_per_win_history) if positions_won > 1 else 0.0),
+                ndigits=3
+            ),
+            reward_per_loss_mean=round(
+                number=(statistics.mean(self._reward_per_loss_history) if positions_lost > 0 else 0.0),
+                ndigits=3
+            ),
+            reward_per_loss_std=round(
+                number=(statistics.stdev(self._reward_per_loss_history) if positions_lost > 1 else 0.0),
+                ndigits=3
+            )
         )
 
     def _update_candlestick_data(self) -> None:
@@ -261,6 +277,5 @@ class TradingEnvironment(Environment):
             recent_win_ratio=(
                 sum([1.0 if x > 0.0 else 0.0 for x in self._profit_and_loss_history[-self._recent_trades_memory:]]) /
                 self._recent_trades_memory
-            ),
-            hour_of_day=(self._current_higher_interval_candlestick_data['close_time'].iloc[-1].hour / 24.0)
+            )
         )
