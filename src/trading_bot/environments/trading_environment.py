@@ -98,48 +98,44 @@ class TradingEnvironment(Environment):
         if agent_action == TradingAgentAction.open_long_position:
             if self._open_position_lower_interval_index is None:
                 self._steps_without_action = 0
-                reward += 0.0  # Encourage exploration
+                reward += 0.0001  # Encourage exploration
                 self._open_position_lower_interval_index = self._current_lower_interval_index
                 self._current_balance -= self._position_size
                 self._holdings = (self._position_size / current_price) * (1.0 - self._trading_fee)
             else:
                 self._forbidden_actions += 1
-                reward -= 0.0  # Discourage multiple open positions
+                reward -= 0.01  # Discourage multiple open positions
         elif agent_action == TradingAgentAction.close_long_position:
             if self._open_position_lower_interval_index is None:
                 self._forbidden_actions += 1
-                reward -= 0.0  # Penalize invalid action
+                reward -= 0.01  # Penalize invalid action
             else:
                 reward += 0.0  # Encourage active risk management
                 self._steps_without_action = 0
                 position_closing_income: float = (self._holdings * current_price) * (1.0 - self._trading_fee)
                 step_profit_and_loss: float = position_closing_income - self._position_size
                 relative_step_profit_and_loss: float = step_profit_and_loss / self._position_size
+                position_age: int = self._current_lower_interval_index - self._open_position_lower_interval_index
                 self._profit_and_loss_history.append(step_profit_and_loss)
-                self._position_age_history.append(
-                    self._current_lower_interval_index - self._open_position_lower_interval_index
-                )
+                self._position_age_history.append(position_age)
                 self._profit += step_profit_and_loss
                 self._holdings = 0.0
                 self._current_balance += position_closing_income
                 self._open_position_lower_interval_index = None
                 step_profit_and_loss_reward: float
+                position_age_factor: float
                 if step_profit_and_loss > 0.0:
-                    step_profit_and_loss_reward = relative_step_profit_and_loss * 100.0  # Boost rewards for gains
+                    position_age_factor = (-1.0 / 96.0) * position_age + 1.0
+                    step_profit_and_loss_reward = relative_step_profit_and_loss * 100.0 * position_age_factor
                     self._reward_per_win_history.append(step_profit_and_loss_reward)
                 else:
-                    step_profit_and_loss_reward = relative_step_profit_and_loss * 100.0  # Lower penalty for losses
+                    position_age_factor = (1.0 / 96.0) * position_age
+                    step_profit_and_loss_reward = relative_step_profit_and_loss * 100.0 * position_age_factor
                     self._reward_per_loss_history.append(step_profit_and_loss_reward)
                 reward += step_profit_and_loss_reward
         else:
             self._steps_without_action += 1
             reward -= 0.0 * self._steps_without_action
-        # Penalize holding positions too long
-        if self._open_position_lower_interval_index is not None:
-            position_age: int = self._current_lower_interval_index - self._open_position_lower_interval_index
-            position_age_penalty: int = 12
-            if position_age > position_age_penalty:
-                reward -= (position_age - position_age_penalty) * 0.0
         self._current_lower_interval_index += 1
         self._update_candlestick_data()
         done: bool = self._open_position_lower_interval_index is None and self._current_balance <= 0.0
